@@ -46,7 +46,7 @@ export class MemStorage implements IStorage {
   private userAchievements: Map<number, Achievement[]>;
   private connectedPlayers: Map<string, Set<string>>;
   private currentUserId: number;
-  private achievements: Achievement[];
+  private achievements: Achievement[] = [];
 
   constructor() {
     this.users = new Map();
@@ -142,9 +142,13 @@ export class MemStorage implements IStorage {
   async createRoom(insertRoom: InsertRoom): Promise<Room> {
     const id = Math.random().toString(36).substring(2, 15);
     const room: Room = {
-      ...insertRoom,
       id,
+      name: insertRoom.name,
+      password: insertRoom.password || null,
+      maxPlayers: insertRoom.maxPlayers || 4,
       isActive: true,
+      settings: insertRoom.settings || {},
+      createdBy: null,
       createdAt: new Date(),
     };
     this.rooms.set(id, room);
@@ -157,6 +161,21 @@ export class MemStorage implements IStorage {
     return Array.from(this.rooms.values()).filter(room => room.isActive);
   }
 
+  async deleteRoom(id: string): Promise<boolean> {
+    const room = this.rooms.get(id);
+    if (!room) return false;
+    
+    // Remove room from storage
+    this.rooms.delete(id);
+    
+    // Clean up related data
+    this.gameStates.delete(id);
+    this.chatMessages.delete(id);
+    this.connectedPlayers.delete(id);
+    
+    return true;
+  }
+
   async updateRoom(id: string, updates: Partial<Room>): Promise<Room | undefined> {
     const room = this.rooms.get(id);
     if (!room) return undefined;
@@ -166,13 +185,7 @@ export class MemStorage implements IStorage {
     return updatedRoom;
   }
 
-  async deleteRoom(id: string): Promise<boolean> {
-    const deleted = this.rooms.delete(id);
-    this.gameStates.delete(id);
-    this.chatMessages.delete(id);
-    this.connectedPlayers.delete(id);
-    return deleted;
-  }
+
 
   async getGameState(roomId: string): Promise<GameState | undefined> {
     return this.gameStates.get(roomId);

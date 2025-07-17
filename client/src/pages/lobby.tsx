@@ -105,7 +105,7 @@ export default function Lobby() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-3xl font-cartoon text-deepsea">
-                  🍔 Bikini Bottom Lobby 🍔
+                  🎮 JustUnoit! 🎮
                 </CardTitle>
                 <p className="text-deepsea">Welcome back, {user.username}!</p>
               </div>
@@ -160,13 +160,38 @@ export default function Lobby() {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          onClick={() => joinRoom(room.id)}
-                          className="bg-squidward hover:bg-green-600 text-white"
-                        >
-                          <Play className="w-4 h-4 mr-2" />
-                          Join
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button
+                            onClick={() => joinRoom(room.id)}
+                            className="bg-squidward hover:bg-green-600 text-white"
+                          >
+                            <Play className="w-4 h-4 mr-2" />
+                            Join
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await apiRequest("DELETE", `/api/rooms/${room.id}`);
+                                toast({
+                                  title: "Success",
+                                  description: "Room deleted successfully",
+                                });
+                                fetchRooms();
+                              } catch (error: any) {
+                                toast({
+                                  title: "Error",
+                                  description: error.message || "Failed to delete room",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            variant="destructive"
+                            size="sm"
+                            className="bg-krabs hover:bg-red-600 text-white"
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     ))
                   )}

@@ -1,21 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MessageCircle, Send, AlertTriangle } from "lucide-react";
 import { ChatMessage } from "@shared/schema";
-import { MessageCircle, Send } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatSystemProps {
-  roomId: string;
-  currentUser: any;
+  messages: ChatMessage[];
   onSendMessage: (message: string, type?: string) => void;
+  currentUsername: string;
 }
 
-export function ChatSystem({ roomId, currentUser, onSendMessage }: ChatSystemProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+export function ChatSystem({ messages, onSendMessage, currentUsername }: ChatSystemProps) {
+  const [inputMessage, setInputMessage] = useState("");
+  const [messageFilter, setMessageFilter] = useState<"all" | "game" | "chat">("all");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -27,89 +30,135 @@ export function ChatSystem({ roomId, currentUser, onSendMessage }: ChatSystemPro
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim()) {
-      onSendMessage(newMessage.trim());
-      setNewMessage("");
+    
+    if (!inputMessage.trim()) return;
+    
+    // Basic client-side validation
+    if (inputMessage.length > 200) {
+      toast({
+        title: "Message Too Long",
+        description: "Messages must be 200 characters or less",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for excessive caps
+    const capsCount = (inputMessage.match(/[A-Z]/g) || []).length;
+    if (capsCount > inputMessage.length * 0.5 && inputMessage.length > 10) {
+      toast({
+        title: "Message Rejected",
+        description: "Please avoid excessive caps lock",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for spam patterns
+    const repeatedPattern = /(.)\1{4,}/;
+    if (repeatedPattern.test(inputMessage)) {
+      toast({
+        title: "Message Rejected",
+        description: "Please avoid repeating characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onSendMessage(inputMessage.trim());
+    setInputMessage("");
+  };
+
+  const filteredMessages = messages.filter(msg => {
+    if (messageFilter === "all") return true;
+    if (messageFilter === "game") return msg.type === "game" || msg.type === "system";
+    if (messageFilter === "chat") return msg.type === "message";
+    return true;
+  });
+
+  const getMessageStyle = (message: ChatMessage) => {
+    if (message.type === "system") return "bg-krabs text-white";
+    if (message.type === "game") return "bg-squidward text-white";
+    if (message.username === currentUsername) return "bg-spongebob text-deepsea ml-auto";
+    return "bg-bubble text-deepsea";
+  };
+
+  const getMessageIcon = (type: string) => {
+    switch (type) {
+      case "system": return "🔧";
+      case "game": return "🎮";
+      default: return "💬";
     }
   };
 
-  const sendEmoji = (emoji: string) => {
-    onSendMessage(emoji, "emoji");
-  };
-
-  const getMessageBackground = (message: ChatMessage) => {
-    if (message.type === "system") return "bg-deepsea bg-opacity-20";
-    if (message.playerId === currentUser.id.toString()) return "bg-spongebob bg-opacity-20";
-    
-    // Different colors for different players
-    const colors = [
-      "bg-patrick bg-opacity-20",
-      "bg-squidward bg-opacity-20", 
-      "bg-krabs bg-opacity-20",
-      "bg-sandy bg-opacity-20"
-    ];
-    
-    const hash = message.playerId.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    
-    return colors[Math.abs(hash) % colors.length];
-  };
-
-  const spongeBobEmojis = [
-    { emoji: "🍔", label: "Krabby Patty" },
-    { emoji: "⭐", label: "Patrick" },
-    { emoji: "🎵", label: "Squidward" },
-    { emoji: "💰", label: "Mr. Krabs" },
-    { emoji: "🦀", label: "Crab" },
-    { emoji: "🐿️", label: "Sandy" },
-    { emoji: "🧽", label: "SpongeBob" },
-    { emoji: "🌊", label: "Ocean" },
-    { emoji: "🏖️", label: "Beach" },
-    { emoji: "🦠", label: "Plankton" },
-    { emoji: "🎮", label: "Game" },
-    { emoji: "🏆", label: "Trophy" }
-  ];
-
   return (
-    <Card className="bg-bubble bg-opacity-90 backdrop-blur-sm border-4 border-patrick shadow-xl">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-cartoon text-deepsea flex items-center">
-          <MessageCircle className="w-5 h-5 mr-2" />
-          Chat
-        </CardTitle>
+    <Card className="bg-bubble bg-opacity-90 backdrop-blur-sm border-4 border-patrick shadow-xl h-full flex flex-col">
+      <CardHeader className="p-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-cartoon text-deepsea flex items-center">
+            <MessageCircle className="w-5 h-5 mr-2" />
+            Bikini Bottom Chat
+          </CardTitle>
+          <div className="flex space-x-1">
+            <Button
+              variant={messageFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMessageFilter("all")}
+              className="text-xs"
+            >
+              All
+            </Button>
+            <Button
+              variant={messageFilter === "game" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMessageFilter("game")}
+              className="text-xs"
+            >
+              Game
+            </Button>
+            <Button
+              variant={messageFilter === "chat" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMessageFilter("chat")}
+              className="text-xs"
+            >
+              Chat
+            </Button>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
-        <ScrollArea className="h-64 mb-4 pr-4">
+      
+      <CardContent className="flex-1 flex flex-col p-4 pt-0">
+        {/* Messages Area */}
+        <ScrollArea className="flex-1 mb-4 max-h-64">
           <div className="space-y-3">
-            {messages.length === 0 ? (
+            {filteredMessages.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-2xl mb-2">💬</div>
-                <p className="text-sm text-deepsea">No messages yet. Say hello!</p>
+                <div className="text-4xl mb-2">🐠</div>
+                <p className="text-deepsea">No messages yet. Start the conversation!</p>
               </div>
             ) : (
-              messages.map((message) => (
+              filteredMessages.map((message) => (
                 <div
                   key={message.id}
-                  className={`${getMessageBackground(message)} rounded-lg p-3 transition-all duration-300 hover:bg-opacity-30`}
+                  className={`p-3 rounded-lg max-w-xs ${getMessageStyle(message)}`}
                 >
-                  <div className="text-xs text-deepsea font-bold mb-1">
-                    {message.type === "system" ? "🤖 System" : message.username}
-                    <span className="ml-2 text-gray-500">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-sm">{getMessageIcon(message.type)}</span>
+                    <span className="font-semibold text-sm">{message.username}</span>
+                    <span className="text-xs opacity-70">
                       {new Date(message.timestamp).toLocaleTimeString([], { 
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
                     </span>
                   </div>
-                  <div className={`text-sm ${message.type === "system" ? "font-medium italic" : ""}`}>
-                    {message.type === "emoji" ? (
-                      <span className="text-2xl">{message.message}</span>
-                    ) : (
-                      <span className="text-deepsea">{message.message}</span>
-                    )}
-                  </div>
+                  <p className="text-sm break-words">{message.message}</p>
+                  {message.type === "system" && (
+                    <Badge variant="secondary" className="mt-1 text-xs">
+                      System
+                    </Badge>
+                  )}
                 </div>
               ))
             )}
@@ -117,37 +166,30 @@ export function ChatSystem({ roomId, currentUser, onSendMessage }: ChatSystemPro
           </div>
         </ScrollArea>
 
-        <form onSubmit={handleSendMessage} className="flex space-x-2 mb-3">
+        {/* Message Input */}
+        <form onSubmit={handleSendMessage} className="flex space-x-2">
           <Input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder="Type a message... (family-friendly only)"
             className="flex-1 border-2 border-deepsea focus:border-spongebob"
             maxLength={200}
           />
-          <Button
-            type="submit"
-            disabled={!newMessage.trim()}
-            className="bg-spongebob hover:bg-yellow-600 text-deepsea px-4 py-2"
+          <Button 
+            type="submit" 
+            disabled={!inputMessage.trim()}
+            className="bg-squidward hover:bg-green-600 text-white"
           >
             <Send className="w-4 h-4" />
           </Button>
         </form>
-
-        {/* SpongeBob themed emoji panel */}
-        <div className="grid grid-cols-6 gap-2">
-          {spongeBobEmojis.map((item) => (
-            <Button
-              key={item.emoji}
-              onClick={() => sendEmoji(item.emoji)}
-              variant="ghost"
-              className="text-2xl hover:scale-125 hover:bg-bubble transition-all duration-200 p-2 h-auto"
-              title={item.label}
-            >
-              {item.emoji}
-            </Button>
-          ))}
+        
+        {/* Chat Rules */}
+        <div className="mt-2 p-2 bg-sandy bg-opacity-20 rounded border border-sandy">
+          <div className="flex items-center space-x-2 text-xs text-deepsea">
+            <AlertTriangle className="w-3 h-3" />
+            <span>Keep it friendly! Inappropriate messages will be filtered.</span>
+          </div>
         </div>
       </CardContent>
     </Card>

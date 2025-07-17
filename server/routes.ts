@@ -6,12 +6,16 @@ import { GameEngine } from "./game-engine";
 import { AIController } from "./ai-controller";
 import { insertUserSchema, insertRoomSchema, Player, ChatMessage } from "@shared/schema";
 import { z } from "zod";
+import { isMessageAppropriate, filterProfanity } from "./profanity-filter";
 
 const gameEngine = new GameEngine();
 const aiController = new AIController();
 
 // WebSocket connections by room
 const roomConnections = new Map<string, Map<string, WebSocket>>();
+
+// Track if players have already been announced as joined
+const announcedJoins = new Map<string, Set<string>>();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // User authentication
@@ -79,6 +83,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/rooms/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteRoom(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Room not found" });
+      }
+      res.json({ message: "Room deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete room" });
+    }
+  });
+
   // Game state
   app.get("/api/game/:roomId", async (req, res) => {
     try {
@@ -137,6 +153,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             roomId = message.roomId;
             playerId = message.playerId;
             
+            if (!roomId || !playerId) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Missing roomId or playerId'
+              }));
+              break;
+            }
+            
             if (!roomConnections.has(roomId)) {
               roomConnections.set(roomId, new Map());
             }
@@ -144,12 +168,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             roomConnections.get(roomId)!.set(playerId, ws);
             await storage.addConnectedPlayer(roomId, playerId);
             
-            // Broadcast player joined
-            broadcastToRoom(roomId, {
-              type: 'player_joined',
-              playerId,
-              username: message.username,
-            });
+            // Initialize announced joins for room if not exists
+            if (!announcedJoins.has(roomId)) {
+              announcedJoins.set(roomId, new Set());
+            }
+            
+            // Only broadcast join if player hasn't been announced before
+            const roomAnnounced = announcedJoins.get(roomId)!;
+            if (!roomAnnounced.has(playerId)) {
+              roomAnnounced.add(playerId);
+              broadcastToRoom(roomId, {
+                type: 'player_joined',
+                playerId,
+                username: message.username,
+              });
+            }
             
             // Send current game state
             const gameState = await gameEngine.getGameState(roomId);
@@ -297,11 +330,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           case 'chat_message':
             if (roomId && playerId) {
+              // Check if message is appropriate
+              if (!isMessageAppropriate(message.message)) {
+                ws.send(JSON.stringify({
+                  type: 'chat_error',
+                  message: 'Message contains inappropriate content and was not sent.',
+                }));
+                break;
+              }
+
               const chatMessage: ChatMessage = {
                 id: Math.random().toString(36).substring(2, 15),
                 playerId,
                 username: message.username,
-                message: message.message,
+                message: filterProfanity(message.message),
                 type: message.messageType || 'message',
                 timestamp: new Date(),
               };

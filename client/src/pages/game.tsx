@@ -28,6 +28,7 @@ export default function Game() {
   const [showGameOver, setShowGameOver] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
   const { toast } = useToast();
 
   const { sendMessage, lastMessage, connectionStatus } = useWebSocket(roomId || "");
@@ -99,6 +100,18 @@ export default function Game() {
             title: "Player Left",
             description: "A player left the game",
           });
+          break;
+          
+        case "chat_error":
+          toast({
+            title: "Message Blocked",
+            description: message.message,
+            variant: "destructive",
+          });
+          break;
+          
+        case "new_chat_message":
+          setChatMessages(prev => [...prev, message.message]);
           break;
       }
     }
@@ -181,28 +194,28 @@ export default function Game() {
   const isCurrentTurn = gameState && gameState.players[gameState.currentPlayer]?.id === currentUser.id.toString();
 
   return (
-    <div className="min-h-screen game-background">
+    <div className="h-screen overflow-hidden game-background flex flex-col">
       <ParticleSystem />
       
-      {/* Game Header */}
-      <header className="bg-spongebob bg-opacity-90 backdrop-blur-sm border-b-4 border-krabs shadow-lg">
-        <div className="container mx-auto px-4 py-3">
+      {/* Compact Game Header */}
+      <header className="bg-spongebob bg-opacity-90 backdrop-blur-sm border-b-2 border-krabs shadow-lg">
+        <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-3xl font-cartoon text-deepsea">
-                🎮 UNO: Bikini Bottom
+            <div className="flex items-center space-x-2">
+              <h1 className="text-xl font-cartoon text-deepsea">
+                🎮 JustUnoit!
               </h1>
-              <div className="bg-bubble rounded-full px-4 py-2 border-2 border-patrick">
-                <span className="text-deepsea font-semibold">Room: #{roomId}</span>
+              <div className="bg-bubble rounded px-2 py-1 border border-patrick">
+                <span className="text-deepsea text-sm font-semibold">#{roomId}</span>
               </div>
               <Badge 
                 variant={connectionStatus === "Connected" ? "default" : "destructive"}
-                className={connectionStatus === "Connected" ? "bg-squidward" : ""}
+                className={connectionStatus === "Connected" ? "bg-squidward text-xs" : "text-xs"}
               >
                 {connectionStatus}
               </Badge>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               {gameState && (
                 <div className="bg-squidward rounded-full px-4 py-2 text-white font-semibold">
                   🏆 Tournament: {gameState.tournamentWins[currentUser.id.toString()] || 0}/6 Wins
@@ -221,8 +234,9 @@ export default function Game() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Main Game Area - Flex Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
           {/* Left Sidebar - Player Stats & Achievements */}
           <div className="lg:col-span-1 space-y-4">
             {/* Player Profile */}
@@ -338,9 +352,9 @@ export default function Game() {
           {/* Right Sidebar - Chat & Tournament */}
           <div className="lg:col-span-1 space-y-4">
             <ChatSystem 
-              roomId={roomId}
-              currentUser={currentUser}
+              messages={chatMessages}
               onSendMessage={sendChatMessage}
+              currentUsername={currentUser.username}
             />
             
             {gameState && (
