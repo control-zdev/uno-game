@@ -26,8 +26,9 @@ Preferred communication style: Simple, everyday language.
 - **Module System**: ES modules throughout
 
 ### Data Storage Solutions
-- **Primary Database**: PostgreSQL with Drizzle ORM
-- **Development Storage**: In-memory storage implementation for rapid development
+- **Primary Database**: PostgreSQL with Drizzle ORM (ACTIVE)
+- **User & Room Persistence**: Database-backed user accounts and room management
+- **Real-time Data**: In-memory storage for game states, chat, and connected players
 - **Session Management**: Connect-pg-simple for PostgreSQL-backed sessions
 - **Migration System**: Drizzle Kit for database schema management
 
